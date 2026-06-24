@@ -12,11 +12,14 @@ app.use(express.json());
 // Gmail SMTP
 const transporter = nodemailer.createTransport({
   host: "smtp.gmail.com",
-  port: 465,
-  secure: true,
+  port: 587,
+  secure: false,
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
+  },
+  tls: {
+    rejectUnauthorized: false,
   },
 });
 
@@ -26,10 +29,12 @@ app.get("/", (req, res) => {
 
 app.post("/api/enquiry", async (req, res) => {
   try {
-    console.log("================================");
+    console.log("=================================");
     console.log("Received Lead:", req.body);
 
+    // ==========================
     // 1. Send to Sembark
+    // ==========================
     console.log("Calling Sembark API...");
 
     const sembarkResponse = await axios.post(
@@ -46,24 +51,19 @@ app.post("/api/enquiry", async (req, res) => {
 
     console.log("Sembark Response:", sembarkResponse.data);
 
-    // 2. Check SMTP
+    // ==========================
+    // 2. Email Debug
+    // ==========================
     console.log("EMAIL_USER:", process.env.EMAIL_USER);
     console.log("EMAIL_PASS EXISTS:", !!process.env.EMAIL_PASS);
 
-    console.log("Verifying SMTP...");
+    console.log("Before Email");
 
-    await transporter.verify();
-
-    console.log("SMTP Connected Successfully ✅");
-
-    // 3. Send Email
-    console.log("Sending Email...");
-
-    const mailResult = await transporter.sendMail({
+    const info = await transporter.sendMail({
       from: process.env.EMAIL_USER,
       to: [
         "info@kingdomofholidays.com",
-        "cbWR9lQS-4yEwc8KF@v1-incoming-leads.privyr.com",
+        process.env.PRIVYR_EMAIL,
       ],
       subject: "🔥 New Lead - Kingdom Of Holidays",
 
@@ -78,28 +78,38 @@ app.post("/api/enquiry", async (req, res) => {
         <p><strong>Children:</strong> ${req.body.no_of_children}</p>
         <p><strong>Total Days:</strong> ${req.body.no_of_days}</p>
 
-        <hr/>
+        <hr />
 
         <p><strong>Comments:</strong></p>
         <pre>${req.body.comments || "N/A"}</pre>
       `,
     });
 
-    console.log("Email Sent Successfully ✅");
-    console.log(mailResult.messageId);
+    console.log("After Email");
+    console.log("Message ID:", info.messageId);
 
     return res.status(200).json({
       success: true,
       message: "Lead submitted successfully",
       sembark: sembarkResponse.data,
     });
+
   } catch (error) {
-    console.error("ERROR HIT ❌");
-    console.error("Error Details:", error);
+    console.log("ERROR HIT ❌");
+
+    console.error(
+      "Error Details:",
+      error.response?.data ||
+      error.message ||
+      error
+    );
 
     return res.status(500).json({
       success: false,
-      error: error.message,
+      error:
+        error.response?.data ||
+        error.message ||
+        "Unknown Error",
     });
   }
 });

@@ -26,13 +26,10 @@ app.get("/", (req, res) => {
 
 app.post("/api/enquiry", async (req, res) => {
   try {
-    console.log("=================================");
+    console.log("================================");
     console.log("Received Lead:", req.body);
 
-    // -------------------------
     // 1. Send to Sembark
-    // -------------------------
-
     console.log("Calling Sembark API...");
 
     const sembarkResponse = await axios.post(
@@ -49,30 +46,25 @@ app.post("/api/enquiry", async (req, res) => {
 
     console.log("Sembark Response:", sembarkResponse.data);
 
-    // -------------------------
-    // 2. Verify Gmail
-    // -------------------------
+    // 2. Check SMTP
+    console.log("EMAIL_USER:", process.env.EMAIL_USER);
+    console.log("EMAIL_PASS EXISTS:", !!process.env.EMAIL_PASS);
 
     console.log("Verifying SMTP...");
 
     await transporter.verify();
 
-    console.log("SMTP Connected Successfully");
+    console.log("SMTP Connected Successfully ✅");
 
-    // -------------------------
     // 3. Send Email
-    // -------------------------
-
     console.log("Sending Email...");
 
-    const mailResponse = await transporter.sendMail({
+    const mailResult = await transporter.sendMail({
       from: process.env.EMAIL_USER,
-
       to: [
         "info@kingdomofholidays.com",
-        process.env.PRIVYR_EMAIL,
+        "cbWR9lQS-4yEwc8KF@v1-incoming-leads.privyr.com",
       ],
-
       subject: "🔥 New Lead - Kingdom Of Holidays",
 
       html: `
@@ -86,44 +78,28 @@ app.post("/api/enquiry", async (req, res) => {
         <p><strong>Children:</strong> ${req.body.no_of_children}</p>
         <p><strong>Total Days:</strong> ${req.body.no_of_days}</p>
 
-        <hr />
+        <hr/>
 
         <p><strong>Comments:</strong></p>
-
-        <pre>
-${req.body.comments || "N/A"}
-        </pre>
+        <pre>${req.body.comments || "N/A"}</pre>
       `,
     });
 
-    console.log("Mail Sent Successfully");
-    console.log(mailResponse);
-
-    // -------------------------
-    // Success Response
-    // -------------------------
+    console.log("Email Sent Successfully ✅");
+    console.log(mailResult.messageId);
 
     return res.status(200).json({
       success: true,
-      message: "Lead Submitted Successfully",
+      message: "Lead submitted successfully",
       sembark: sembarkResponse.data,
     });
   } catch (error) {
-    console.log("=================================");
-    console.log("ERROR HIT");
-
-    console.error(
-      error.response?.data ||
-        error.message ||
-        error
-    );
+    console.error("ERROR HIT ❌");
+    console.error("Error Details:", error);
 
     return res.status(500).json({
       success: false,
-      error:
-        error.response?.data ||
-        error.message ||
-        "Unknown Error",
+      error: error.message,
     });
   }
 });

@@ -10,32 +10,45 @@ app.use(cors());
 app.use(express.json());
 
 // ==========================
-// Gmail SMTP (Force IPv4)
+// BREVO SMTP
 // ==========================
 const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: 465,
-  secure: true,
+  host: process.env.SMTP_HOST,
+  port: Number(process.env.SMTP_PORT),
+  secure: false, // Port 587 => false
   auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-  tls: {
-    rejectUnauthorized: false,
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
   },
 });
 
+// Test SMTP on startup
+transporter
+  .verify()
+  .then(() => {
+    console.log("✅ Brevo SMTP Connected");
+  })
+  .catch((err) => {
+    console.error("❌ SMTP Error:", err.message);
+  });
+
+// ==========================
+// HEALTH CHECK
+// ==========================
 app.get("/", (req, res) => {
   res.send("Backend Running 🚀");
 });
 
+// ==========================
+// ENQUIRY API
+// ==========================
 app.post("/api/enquiry", async (req, res) => {
   try {
     console.log("=================================");
     console.log("Received Lead:", req.body);
 
     // ==========================
-    // Send Lead To Sembark
+    // SEND TO SEMBARK
     // ==========================
     console.log("Calling Sembark API...");
 
@@ -54,7 +67,7 @@ app.post("/api/enquiry", async (req, res) => {
     console.log("Sembark Response:", sembarkResponse.data);
 
     // ==========================
-    // Send Success Response First
+    // SUCCESS RESPONSE FIRST
     // ==========================
     res.status(200).json({
       success: true,
@@ -63,29 +76,31 @@ app.post("/api/enquiry", async (req, res) => {
     });
 
     // ==========================
-    // Email In Background
+    // EMAIL IN BACKGROUND
     // ==========================
     console.log("Sending Email...");
 
     transporter
       .sendMail({
-        from: process.env.EMAIL_USER,
+        from: "Kingdom Of Holidays <info@kingdomofholidays.com>",
+
         to: [
           "info@kingdomofholidays.com",
           process.env.PRIVYR_EMAIL,
         ],
+
         subject: "🔥 New Lead - Kingdom Of Holidays",
 
         html: `
           <h2>New Enquiry Received</h2>
 
-          <p><strong>Name:</strong> ${req.body.name}</p>
-          <p><strong>Phone:</strong> ${req.body.phone_number}</p>
-          <p><strong>Destination:</strong> ${req.body.destination}</p>
-          <p><strong>Travel Date:</strong> ${req.body.start_date}</p>
-          <p><strong>Adults:</strong> ${req.body.no_of_adults}</p>
-          <p><strong>Children:</strong> ${req.body.no_of_children}</p>
-          <p><strong>Total Days:</strong> ${req.body.no_of_days}</p>
+          <p><strong>Name:</strong> ${req.body.name || "N/A"}</p>
+          <p><strong>Phone:</strong> ${req.body.phone_number || "N/A"}</p>
+          <p><strong>Destination:</strong> ${req.body.destination || "N/A"}</p>
+          <p><strong>Travel Date:</strong> ${req.body.start_date || "N/A"}</p>
+          <p><strong>Adults:</strong> ${req.body.no_of_adults || "0"}</p>
+          <p><strong>Children:</strong> ${req.body.no_of_children || "0"}</p>
+          <p><strong>Total Days:</strong> ${req.body.no_of_days || "0"}</p>
 
           <hr />
 
@@ -94,20 +109,20 @@ app.post("/api/enquiry", async (req, res) => {
         `,
       })
       .then((info) => {
-        console.log("EMAIL SENT ✅");
-        console.log(info.messageId);
+        console.log("✅ EMAIL SENT");
+        console.log("Message ID:", info.messageId);
       })
       .catch((err) => {
-        console.error("EMAIL FAILED ❌");
+        console.error("❌ EMAIL FAILED");
         console.error(err.message);
       });
   } catch (error) {
-    console.error("ERROR HIT ❌");
+    console.error("❌ ERROR HIT");
 
     console.error(
       error.response?.data ||
-      error.message ||
-      error
+        error.message ||
+        JSON.stringify(error, null, 2)
     );
 
     return res.status(500).json({
@@ -120,8 +135,11 @@ app.post("/api/enquiry", async (req, res) => {
   }
 });
 
+// ==========================
+// START SERVER
+// ==========================
 const PORT = process.env.PORT || 10000;
 
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`🚀 Server running on port ${PORT}`);
 });

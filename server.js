@@ -11,16 +11,14 @@ app.use(express.json());
 
 // Gmail SMTP
 const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: 587,
-  secure: false,
+  service: "gmail",
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
   },
-  tls: {
-    rejectUnauthorized: false,
-  },
+  connectionTimeout: 10000,
+  greetingTimeout: 10000,
+  socketTimeout: 10000,
 });
 
 app.get("/", (req, res) => {
@@ -33,7 +31,7 @@ app.post("/api/enquiry", async (req, res) => {
     console.log("Received Lead:", req.body);
 
     // ==========================
-    // 1. Send to Sembark
+    // Send to Sembark
     // ==========================
     console.log("Calling Sembark API...");
 
@@ -52,53 +50,51 @@ app.post("/api/enquiry", async (req, res) => {
     console.log("Sembark Response:", sembarkResponse.data);
 
     // ==========================
-    // 2. Email Debug
+    // Send Email (Background)
     // ==========================
-    console.log("EMAIL_USER:", process.env.EMAIL_USER);
-    console.log("EMAIL_PASS EXISTS:", !!process.env.EMAIL_PASS);
+    transporter
+      .sendMail({
+        from: process.env.EMAIL_USER,
+        to: [
+          "info@kingdomofholidays.com",
+          process.env.PRIVYR_EMAIL,
+        ],
+        subject: "🔥 New Lead - Kingdom Of Holidays",
+        html: `
+          <h2>New Enquiry Received</h2>
 
-    console.log("Before Email");
+          <p><strong>Name:</strong> ${req.body.name}</p>
+          <p><strong>Phone:</strong> ${req.body.phone_number}</p>
+          <p><strong>Destination:</strong> ${req.body.destination}</p>
+          <p><strong>Travel Date:</strong> ${req.body.start_date}</p>
+          <p><strong>Adults:</strong> ${req.body.no_of_adults}</p>
+          <p><strong>Children:</strong> ${req.body.no_of_children}</p>
+          <p><strong>Total Days:</strong> ${req.body.no_of_days}</p>
 
-    const info = await transporter.sendMail({
-      from: process.env.EMAIL_USER,
-      to: [
-        "info@kingdomofholidays.com",
-        process.env.PRIVYR_EMAIL,
-      ],
-      subject: "🔥 New Lead - Kingdom Of Holidays",
+          <hr />
 
-      html: `
-        <h2>New Enquiry Received</h2>
+          <p><strong>Comments:</strong></p>
+          <pre>${req.body.comments || "N/A"}</pre>
+        `,
+      })
+      .then((info) => {
+        console.log("Email Sent Successfully ✅");
+        console.log(info.messageId);
+      })
+      .catch((err) => {
+        console.error("Email Error ❌", err.message);
+      });
 
-        <p><strong>Name:</strong> ${req.body.name}</p>
-        <p><strong>Phone:</strong> ${req.body.phone_number}</p>
-        <p><strong>Destination:</strong> ${req.body.destination}</p>
-        <p><strong>Travel Date:</strong> ${req.body.start_date}</p>
-        <p><strong>Adults:</strong> ${req.body.no_of_adults}</p>
-        <p><strong>Children:</strong> ${req.body.no_of_children}</p>
-        <p><strong>Total Days:</strong> ${req.body.no_of_days}</p>
-
-        <hr />
-
-        <p><strong>Comments:</strong></p>
-        <pre>${req.body.comments || "N/A"}</pre>
-      `,
-    });
-
-    console.log("After Email");
-    console.log("Message ID:", info.messageId);
-
+    // IMPORTANT:
+    // Frontend ko turant response bhejo
     return res.status(200).json({
       success: true,
       message: "Lead submitted successfully",
       sembark: sembarkResponse.data,
     });
-
   } catch (error) {
-    console.log("ERROR HIT ❌");
-
+    console.error("ERROR HIT ❌");
     console.error(
-      "Error Details:",
       error.response?.data ||
       error.message ||
       error

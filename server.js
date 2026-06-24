@@ -38,10 +38,13 @@ app.post("/api/enquiry", async (req, res) => {
           "Content-Type": "application/json",
         },
         timeout: 15000,
-      }
+      },
     );
 
     console.log("Sembark Response:", sembarkResponse.data);
+
+    await transporter.verify();
+    console.log("SMTP Connected Successfully");
 
     // 2. Send Email to KOH + Privyr
     await transporter.sendMail({
@@ -80,10 +83,7 @@ app.post("/api/enquiry", async (req, res) => {
   } catch (error) {
     console.log("ERROR HIT");
 
-    console.error(
-      "Error:",
-      error.response?.data || error.message
-    );
+    console.error("Error:", error.response?.data || error.message);
 
     res.status(500).json({
       success: false,

@@ -13,8 +13,8 @@ app.use(express.json());
 // BREVO SMTP
 // ==========================
 const transporter = nodemailer.createTransport({
-  host: "smtp-relay.brevo.com",
-  port: 2525,
+  host: process.env.SMTP_HOST || "smtp-relay.brevo.com",
+  port: Number(process.env.SMTP_PORT) || 2525,
   secure: false,
   auth: {
     user: process.env.SMTP_USER,
@@ -25,14 +25,16 @@ const transporter = nodemailer.createTransport({
   socketTimeout: 30000,
 });
 
-// SMTP Verify On Startup
+// ==========================
+// SMTP VERIFY
+// ==========================
 (async () => {
   try {
     await transporter.verify();
     console.log("✅ Brevo SMTP Connected");
   } catch (err) {
     console.error("❌ SMTP Verify Error");
-    console.error(err);
+    console.error(err.message);
   }
 })();
 
@@ -44,27 +46,27 @@ app.get("/", (req, res) => {
 });
 
 // ==========================
-// TEST EMAIL ROUTE
+// EMAIL TEST ROUTE
 // ==========================
 app.get("/test-email", async (req, res) => {
   try {
     const info = await transporter.sendMail({
       from: "Kingdom Of Holidays <info@kingdomofholidays.com>",
       to: "info@kingdomofholidays.com",
-      subject: "Brevo Test Email",
-      text: "SMTP is working successfully 🚀",
+      subject: "Brevo Test Email 🚀",
+      text: "SMTP is working successfully.",
     });
 
     console.log("✅ TEST EMAIL SENT");
     console.log(info.messageId);
 
-    return res.json({
+    return res.status(200).json({
       success: true,
       messageId: info.messageId,
     });
   } catch (err) {
     console.error("❌ TEST EMAIL FAILED");
-    console.error(err);
+    console.error(err.message);
 
     return res.status(500).json({
       success: false,
@@ -81,6 +83,9 @@ app.post("/api/enquiry", async (req, res) => {
     console.log("=================================");
     console.log("Received Lead:", req.body);
 
+    // ==========================
+    // SEND TO SEMBARK
+    // ==========================
     console.log("Calling Sembark API...");
 
     const sembarkResponse = await axios.post(
@@ -97,23 +102,29 @@ app.post("/api/enquiry", async (req, res) => {
 
     console.log("Sembark Response:", sembarkResponse.data);
 
-    // Frontend ko turant success bhejo
+    // ==========================
+    // SEND SUCCESS RESPONSE FIRST
+    // ==========================
     res.status(200).json({
       success: true,
       message: "Lead submitted successfully",
       sembark: sembarkResponse.data,
     });
 
-    // Email background me bhejo
+    // ==========================
+    // EMAIL IN BACKGROUND
+    // ==========================
     console.log("Sending Email...");
 
     transporter
       .sendMail({
         from: "Kingdom Of Holidays <info@kingdomofholidays.com>",
+
         to: [
           "info@kingdomofholidays.com",
           process.env.PRIVYR_EMAIL,
         ],
+
         subject: "🔥 New Lead - Kingdom Of Holidays",
 
         html: `
@@ -135,19 +146,27 @@ app.post("/api/enquiry", async (req, res) => {
       })
       .then((info) => {
         console.log("✅ EMAIL SENT");
-        console.log(info.messageId);
+        console.log("Message ID:", info.messageId);
       })
       .catch((err) => {
         console.error("❌ EMAIL FAILED");
-        console.error(err);
+        console.error(err.message);
       });
   } catch (error) {
     console.error("❌ ERROR HIT");
-    console.error(error);
+
+    console.error(
+      error.response?.data ||
+        error.message ||
+        JSON.stringify(error, null, 2)
+    );
 
     return res.status(500).json({
       success: false,
-      error: error.message || "Unknown Error",
+      error:
+        error.response?.data ||
+        error.message ||
+        "Unknown Error",
     });
   }
 });

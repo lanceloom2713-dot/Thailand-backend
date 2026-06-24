@@ -9,9 +9,12 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Mail Transporter
+// Gmail SMTP
 const transporter = nodemailer.createTransport({
-  service: "gmail",
+  host: "smtp.gmail.com",
+  port: 587,
+  secure: false,
+  family: 4,
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
@@ -24,9 +27,13 @@ app.get("/", (req, res) => {
 
 app.post("/api/enquiry", async (req, res) => {
   try {
-    console.log("Received:", req.body);
+    console.log("=================================");
+    console.log("Received Lead:", req.body);
 
-    // 1. Send to Sembark CRM
+    // =========================
+    // 1. SEND TO SEMBARK
+    // =========================
+
     console.log("Calling Sembark API...");
 
     const sembarkResponse = await axios.post(
@@ -38,20 +45,22 @@ app.post("/api/enquiry", async (req, res) => {
           "Content-Type": "application/json",
         },
         timeout: 15000,
-      },
+      }
     );
 
     console.log("Sembark Response:", sembarkResponse.data);
 
-    await transporter.verify();
-    console.log("SMTP Connected Successfully");
+    // =========================
+    // 2. SEND EMAIL
+    // =========================
 
-    // 2. Send Email to KOH + Privyr
-    await transporter.sendMail({
-      from: process.env.EMAIL_USER,
+    console.log("Before Email");
+
+    const mailResponse = await transporter.sendMail({
+      from: `"Kingdom Of Holidays" <${process.env.EMAIL_USER}>`,
       to: [
-        "info@kingdomofholidays.com",
-        "cbWR9lQS-4yEwc8KF@v1-incoming-leads.privyr.com",
+        process.env.EMAIL_USER,
+        process.env.PRIVYR_EMAIL,
       ],
       subject: "🔥 New Lead - Kingdom Of Holidays",
 
@@ -66,16 +75,21 @@ app.post("/api/enquiry", async (req, res) => {
         <p><strong>Children:</strong> ${req.body.no_of_children}</p>
         <p><strong>Total Days:</strong> ${req.body.no_of_days}</p>
 
-        <hr />
+        <hr/>
 
         <p><strong>Comments:</strong></p>
         <pre>${req.body.comments || "N/A"}</pre>
       `,
     });
 
-    console.log("Emails sent successfully");
+    console.log("Email Sent:", mailResponse.messageId);
+    console.log("After Email");
 
-    res.status(200).json({
+    // =========================
+    // SUCCESS RESPONSE
+    // =========================
+
+    return res.status(200).json({
       success: true,
       message: "Lead submitted successfully",
       sembark: sembarkResponse.data,
@@ -83,11 +97,19 @@ app.post("/api/enquiry", async (req, res) => {
   } catch (error) {
     console.log("ERROR HIT");
 
-    console.error("Error:", error.response?.data || error.message);
+    console.error(
+      "Error Details:",
+      error.response?.data ||
+        error.message ||
+        error
+    );
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
-      error: error.response?.data || error.message,
+      error:
+        error.response?.data ||
+        error.message ||
+        "Unknown Error",
     });
   }
 });

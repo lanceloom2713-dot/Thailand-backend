@@ -12,9 +12,8 @@ app.use(express.json());
 // Gmail SMTP
 const transporter = nodemailer.createTransport({
   host: "smtp.gmail.com",
-  port: 587,
-  secure: false,
-  family: 4,
+  port: 465,
+  secure: true,
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
@@ -30,9 +29,9 @@ app.post("/api/enquiry", async (req, res) => {
     console.log("=================================");
     console.log("Received Lead:", req.body);
 
-    // =========================
-    // 1. SEND TO SEMBARK
-    // =========================
+    // -------------------------
+    // 1. Send to Sembark
+    // -------------------------
 
     console.log("Calling Sembark API...");
 
@@ -50,18 +49,30 @@ app.post("/api/enquiry", async (req, res) => {
 
     console.log("Sembark Response:", sembarkResponse.data);
 
-    // =========================
-    // 2. SEND EMAIL
-    // =========================
+    // -------------------------
+    // 2. Verify Gmail
+    // -------------------------
 
-    console.log("Before Email");
+    console.log("Verifying SMTP...");
+
+    await transporter.verify();
+
+    console.log("SMTP Connected Successfully");
+
+    // -------------------------
+    // 3. Send Email
+    // -------------------------
+
+    console.log("Sending Email...");
 
     const mailResponse = await transporter.sendMail({
-      from: `"Kingdom Of Holidays" <${process.env.EMAIL_USER}>`,
+      from: process.env.EMAIL_USER,
+
       to: [
-        process.env.EMAIL_USER,
+        "info@kingdomofholidays.com",
         process.env.PRIVYR_EMAIL,
       ],
+
       subject: "🔥 New Lead - Kingdom Of Holidays",
 
       html: `
@@ -75,30 +86,33 @@ app.post("/api/enquiry", async (req, res) => {
         <p><strong>Children:</strong> ${req.body.no_of_children}</p>
         <p><strong>Total Days:</strong> ${req.body.no_of_days}</p>
 
-        <hr/>
+        <hr />
 
         <p><strong>Comments:</strong></p>
-        <pre>${req.body.comments || "N/A"}</pre>
+
+        <pre>
+${req.body.comments || "N/A"}
+        </pre>
       `,
     });
 
-    console.log("Email Sent:", mailResponse.messageId);
-    console.log("After Email");
+    console.log("Mail Sent Successfully");
+    console.log(mailResponse);
 
-    // =========================
-    // SUCCESS RESPONSE
-    // =========================
+    // -------------------------
+    // Success Response
+    // -------------------------
 
     return res.status(200).json({
       success: true,
-      message: "Lead submitted successfully",
+      message: "Lead Submitted Successfully",
       sembark: sembarkResponse.data,
     });
   } catch (error) {
+    console.log("=================================");
     console.log("ERROR HIT");
 
     console.error(
-      "Error Details:",
       error.response?.data ||
         error.message ||
         error

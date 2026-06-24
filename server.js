@@ -9,9 +9,14 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Gmail SMTP
+// ==========================
+// Gmail SMTP (Force IPv4)
+// ==========================
 const transporter = nodemailer.createTransport({
-  service: "gmail",
+  host: "smtp.gmail.com",
+  port: 587,
+  secure: false,
+  family: 4,
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
@@ -31,7 +36,7 @@ app.post("/api/enquiry", async (req, res) => {
     console.log("Received Lead:", req.body);
 
     // ==========================
-    // Send to Sembark
+    // Send Lead To Sembark
     // ==========================
     console.log("Calling Sembark API...");
 
@@ -50,8 +55,19 @@ app.post("/api/enquiry", async (req, res) => {
     console.log("Sembark Response:", sembarkResponse.data);
 
     // ==========================
-    // Send Email (Background)
+    // Send Success Response First
     // ==========================
+    res.status(200).json({
+      success: true,
+      message: "Lead submitted successfully",
+      sembark: sembarkResponse.data,
+    });
+
+    // ==========================
+    // Email In Background
+    // ==========================
+    console.log("Sending Email...");
+
     transporter
       .sendMail({
         from: process.env.EMAIL_USER,
@@ -60,6 +76,7 @@ app.post("/api/enquiry", async (req, res) => {
           process.env.PRIVYR_EMAIL,
         ],
         subject: "🔥 New Lead - Kingdom Of Holidays",
+
         html: `
           <h2>New Enquiry Received</h2>
 
@@ -78,22 +95,16 @@ app.post("/api/enquiry", async (req, res) => {
         `,
       })
       .then((info) => {
-        console.log("Email Sent Successfully ✅");
+        console.log("EMAIL SENT ✅");
         console.log(info.messageId);
       })
       .catch((err) => {
-        console.error("Email Error ❌", err.message);
+        console.error("EMAIL FAILED ❌");
+        console.error(err.message);
       });
-
-    // IMPORTANT:
-    // Frontend ko turant response bhejo
-    return res.status(200).json({
-      success: true,
-      message: "Lead submitted successfully",
-      sembark: sembarkResponse.data,
-    });
   } catch (error) {
     console.error("ERROR HIT ❌");
+
     console.error(
       error.response?.data ||
       error.message ||
@@ -110,7 +121,7 @@ app.post("/api/enquiry", async (req, res) => {
   }
 });
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 10000;
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
